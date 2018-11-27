@@ -5,36 +5,42 @@
 import psycopg2
 
 
+def connect():
+    try:
+            db = psycopg2.connect("dbname=news")  # Connect to database
+            c = db.cursor()  # Create cursor
+            return db, c
+    except (Exception, psycopg2.DatabaseError) as error:
+            print(error)
+
+
 def get_toparticles():
-    conn = psycopg2.connect("dbname=news")
-    cur = conn.cursor()
-    cur.execute("""select a.slug,count(*) as num from articles a,
-                 log l where l.path LIKE '%'|| a.slug group by
-                 a.slug order by num desc limit 3""")
+    conn, cur = connect()
+    cur.execute("""SELECT a.title,count(*) as num FROM articles a,
+                 log l WHERE l.path = concat('/article/', a.slug) GROUP BY
+                 a.title ORDER BY num DESC LIMIT 3""")
     topArticles = cur.fetchall()
     conn.close()
     return topArticles
 
 
 def most_popularauthors():
-    conn = psycopg2.connect("dbname=news")
-    cur = conn.cursor()
-    cur.execute("""select au.name,count(*) as num from articles a,
-                 authors au, log l where l.path LIKE '%'|| a.slug and
-                 a.author=au.id  group by au.id order by num desc limit 3""")
+    conn, cur = connect()
+    cur.execute("""SELECT au.name,count(*) as num FROM articles a, authors
+                 au, log l WHERE l.path = concat('/article/', a.slug) and
+                 a.author=au.id  GROUP BY au.id ORDER BY num DESC LIMIT 3""")
     popularAuthors = cur.fetchall()
     conn.close()
     return popularAuthors
 
 
 def get_errorDays():
-    conn = psycopg2.connect("dbname=news")
-    cur = conn.cursor()
-    cur.execute("""select * from (SELECT TO_CHAR(time,'dd Mon YYYY')
-                 as times, ROUND(100* (SUM(CASE WHEN status like
-                '4'||'%' THEN 1 ELSE 0 END)::numeric)/count(*), 2)
-                 as percent FROM log group by times) as alias
-                 where alias.percent>1""")
+    conn, cur = connect()
+    cur.execute("""SELECT * from (SELECT TO_CHAR(time,'dd Mon YYYY')
+                 as times, ROUND(100* (SUM(CASE WHEN status = '404 NOT FOUND'
+                 THEN 1 ELSE 0 END)::numeric)/count(*), 2)
+                 as percent FROM log GROUP BY times) as alias
+                 WHERE alias.percent>1""")
     errorDays = cur.fetchall()
     conn.close()
     return errorDays
@@ -46,7 +52,7 @@ print()
 print("Top Accessed Articles\n")
 topArticles = get_toparticles()
 for value in topArticles:
-    print("\"" + value[0] + "\"" + " — " + str(value[1]) + " views")
+    print("\"{}\" - {} views".format(value[0], value[1]))
 
 print()
 
@@ -54,7 +60,7 @@ print()
 print("Most Popular Authors\n")
 popularAuthors = most_popularauthors()
 for value in popularAuthors:
-    print(value[0] + " — " + str(value[1]) + " views")
+    print("{} - {} views".format(value[0], value[1]))
 
 print()
 
@@ -62,4 +68,4 @@ print()
 print("On following days, more than 1% of requests lead to errors\n")
 errorDays = get_errorDays()
 for value in errorDays:
-    print(value[0] + " - " + str(value[1]) + "% errors\n")
+    print("{} - {} % errors".format(value[0], value[1]))
